@@ -25,16 +25,14 @@ consumer = KafkaConsumer(
     'topic3',
     bootstrap_servers=['localhost:29092'],
     value_deserializer=lambda x: loads(x),
-    auto_offset_reset='earliest',
-    consumer_timeout_ms=500
+    auto_offset_reset='earliest'
 )
 
 consumer2 = KafkaConsumer(
     'topic3_2',
     bootstrap_servers=['localhost:29092'],
     value_deserializer=lambda x: loads(x),
-    auto_offset_reset='earliest',
-    consumer_timeout_ms=500
+    auto_offset_reset='earliest'
 )
 
 def update_graph():
@@ -215,7 +213,8 @@ app.layout = html.Div(children=[
     [Input('interval-component', 'n_intervals')]
 )
 def update_graph_live(n):
-    getConsumer()
+    if n == 0:
+        getConsumer()
     return update_graph()
 
 @app.callback(
@@ -223,7 +222,8 @@ def update_graph_live(n):
     [Input('interval-component', 'n_intervals')]
 )
 def update_graph_live2(n):
-    getConsumer2()
+    if n == 0:
+        getConsumer2()
     return update_graph2()
 
 if __name__ == '__main__':
