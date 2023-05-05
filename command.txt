@@ -1,0 +1,109 @@
+==========plotly=====================
+conda install -c conda-forge plotly
+conda install -c conda-forge werkzeug=2.0.3
+conda install -c conda-forge pandas
+
+======================STEP 1==============
+RUN SCRIPT '/etc/sql/all.sql';
+======================STEP 2==============
+CREATE STREAM topic1_food_coded_stream WITH (
+    KAFKA_TOPIC='topic1_postgres_food_coded',
+    VALUE_FORMAT='AVRO'
+);
+
+CREATE STREAM topic2_clean_data WITH (
+    kafka_topic='topic2',
+    VALUE_FORMAT='AVRO') AS
+    SELECT * FROM topic1_food_coded_stream
+    WHERE CAST(weight as BIGINT) <= 200 and CAST(comfort_food_reasons_coded as BIGINT) >=0
+    EMIT CHANGES;
+
+CREATE TABLE topic3_comfort_food_reasons_coded_group WITH (
+    kafka_topic='topic3',
+    KEY_FORMAT='JSON',
+    VALUE_FORMAT='JSON') AS
+    SELECT b.label, COUNT(*) AS TOTAL
+    FROM topic2_clean_data a 
+    LEFT JOIN comfort_food_reasons_coded b ON CAST(a.comfort_food_reasons_coded as BIGINT) = b.id
+    GROUP BY b.label
+    EMIT CHANGES;
+
+CREATE STREAM topic2_comfort_food WITH (
+    kafka_topic='topic2_2',
+    VALUE_FORMAT='AVRO') AS
+    SELECT UCASE(TRIM(EXPLODE(SPLIT(comfort_food, ',')))) as NAME
+    FROM topic2_clean_data
+    EMIT CHANGES;
+    
+
+CREATE TABLE topic3_comfort_food_group WITH (
+    kafka_topic='topic3_2',
+    KEY_FORMAT='JSON',
+    VALUE_FORMAT='JSON') AS
+    SELECT NAME, COUNT(*) AS TOTAL
+    FROM topic2_comfort_food
+    GROUP BY NAME
+    EMIT CHANGES;
+========================================
+
+
+CREATE TABLE food_coded_count2 WITH (
+    kafka_topic='topic_test2', 
+    KEY_FORMAT='JSON') AS
+    SELECT GENDER as GENDER, COUNT(*) AS numusers
+    FROM food_coded_stream2
+    WINDOW TUMBLING (size 10 second)
+    GROUP BY GENDER
+    EMIT CHANGES;
+
+
+
+======================================================================
+docker-compose exec elasticsearch curl -XGET 'localhost:9200/food_coded/_search?format=json&pretty'
+======================================================================
+docker exec -ti postgres psql -c "select count(*) from food_coded"
+================================
+RUN SCRIPT '/etc/sql/all.sql';
+======KSQL=======================
+docker-compose exec ksqldb-cli  ksql http://ksqldb-server:8088
+
+https://www.confluent.io/blog/how-real-time-stream-processing-works-with-ksqldb/
+https://www.confluent.io/blog/how-real-time-stream-processing-safely-scales-with-ksqldb/
+https://developer.confluent.io/tutorials/connect-add-key-to-source/ksql.html
+https://docs.confluent.io/platform/6.2/ksqldb/tutorials/basics-local.html
+https://www.confluent.io/blog/ksql-streaming-sql-for-apache-kafka/
+
+DESCRIBE CONNECTOR JDBC_SOURCE_POSTGRES_01;
+
+show topics;
+show streams;
+DESCRIBE food_coded_stream; to see the schema for the stream
+
+PRINT postgres_food_coded FROM BEGINNING LIMIT 6;
+
+CREATE TABLE FOOD_CODED (FOOD_ID INT PRIMARY KEY) WITH (KAFKA_TOPIC='postgres_food_coded', VALUE_FORMAT='AVRO');
+create stream food_coded with(kafka_topic = 'food_coded', partitions = 1) as select FOOD_ID, GPA from FOOD_CODED;
+
+https://docs.ksqldb.io/en/latest/developer-guide/ksqldb-reference/scalar-functions/
+
+
+
+SELECT * FROM topic3_comfort_food_reasons_coded_group EMIT CHANGES LIMIT 5;
+
+SHOW QUERIES;
+TERMINATE <QueryID>;
+DROP STREAM
+
+SELECT 'Hello, ' + weight AS weight
+FROM food_coded_stream
+WHERE CAST(weight as BIGINT) <= 200
+EMIT CHANGES;
+=============================
+
+CREATE TABLE food_coded (FOOD_ID INT PRIMARY KEY) WITH (KAFKA_TOPIC='food_coded_stream2', VALUE_FORMAT='AVRO') AS SELECT GPA FROM food_coded_stream2 EMIT CHANGES;
+
+CREATE TABLE food_coded AS
+    SELECT GPA
+    FROM food_coded_stream2
+    EMIT CHANGES;
+
